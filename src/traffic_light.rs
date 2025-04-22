@@ -58,35 +58,35 @@ impl TrafficLightSystem {
     }
     
     pub fn draw(&self, canvas: &mut Canvas<Window>) -> Result<(), String> {
-        // Draw North traffic light
+        // Draw North traffic light - on the dotted line at the north approach
         draw_traffic_light(
             canvas, 
-            CENTER_X - ROAD_WIDTH as i32 / 4, 
+            CENTER_X, // Position it on the center line (dotted line)
             CENTER_Y - ROAD_WIDTH as i32 / 2 - TRAFFIC_LIGHT_HEIGHT as i32,
             self.north_state
         )?;
         
-        // Draw South traffic light
+        // Draw South traffic light - on the dotted line at the south approach
         draw_traffic_light(
             canvas, 
-            CENTER_X - ROAD_WIDTH as i32 / 4, 
+            CENTER_X, // Position it on the center line (dotted line)
             CENTER_Y + ROAD_WIDTH as i32 / 2,
             self.south_state
         )?;
         
-        // Draw East traffic light
+        // Draw East traffic light - on the dotted line at the east approach
         draw_traffic_light(
             canvas, 
-            CENTER_X - ROAD_WIDTH as i32 / 2 - TRAFFIC_LIGHT_HEIGHT as i32, 
-            CENTER_Y - ROAD_WIDTH as i32 / 4,
+            CENTER_X - ROAD_WIDTH as i32 / 2 - TRAFFIC_LIGHT_HEIGHT as i32,
+            CENTER_Y, // Position it on the center line (dotted line)
             self.east_state
         )?;
         
-        // Draw West traffic light
+        // Draw West traffic light - on the dotted line at the west approach
         draw_traffic_light(
             canvas, 
-            CENTER_X + ROAD_WIDTH as i32 / 2, 
-            CENTER_Y - ROAD_WIDTH as i32 / 4,
+            CENTER_X + ROAD_WIDTH as i32 / 2,
+            CENTER_Y, // Position it on the center line (dotted line)
             self.west_state
         )?;
         
