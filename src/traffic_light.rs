@@ -1,3 +1,4 @@
+// traffic_light.rs
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
@@ -5,7 +6,7 @@ use std::time::Instant;
 use super::window::{CENTER_X, CENTER_Y};
 
 // Constants for traffic light dimensions
-const ROAD_WIDTH: u32 = 100;
+pub const ROAD_WIDTH: u32 = 100;
 const TRAFFIC_LIGHT_WIDTH: u32 = 15;
 const TRAFFIC_LIGHT_HEIGHT: u32 = 40;
 const LIGHT_RADIUS: i32 = 5;
@@ -17,12 +18,12 @@ pub enum TrafficLightState {
 }
 
 pub struct TrafficLightSystem {
-    north_state: TrafficLightState,
-    south_state: TrafficLightState,
-    east_state: TrafficLightState,
-    west_state: TrafficLightState,
-    last_change: Instant,
-    change_interval: u64,
+    pub north_state: TrafficLightState,
+    pub south_state: TrafficLightState,
+    pub east_state: TrafficLightState,
+    pub west_state: TrafficLightState,
+    pub last_change: Instant,
+    pub change_interval: u64,
 }
 
 impl TrafficLightSystem {
