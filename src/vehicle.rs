@@ -42,26 +42,26 @@ impl Vehicle {
         // Position and orientation of vehicle based on direction
         let (x, y, width, height) = match direction {
             Direction::North => (
-                CENTER_X + LANE_WIDTH as i32 / 4, // Right lane
+                CENTER_X - LANE_WIDTH as i32 / 2, // Centered in left lane (going north)
                 WINDOW_HEIGHT as i32 + 50,
                 20,
                 40,
             ),
             Direction::South => (
-                CENTER_X - LANE_WIDTH as i32 / 4, // Left lane
+                CENTER_X + LANE_WIDTH as i32 / 2 - 20, // Centered in right lane (going south)
                 -50,
                 20, 
                 40,
             ),
             Direction::East => (
                 -50,
-                CENTER_Y - LANE_WIDTH as i32 / 4,
+                CENTER_Y + LANE_WIDTH as i32 / 2 - 20, // Centered in bottom lane (going east)
                 40,
                 20,
             ),
             Direction::West => (
                 WINDOW_WIDTH as i32 + 50,
-                CENTER_Y + LANE_WIDTH as i32 / 4,
+                CENTER_Y - LANE_WIDTH as i32 / 2, // Centered in top lane (going west)
                 40,
                 20,
             ),
