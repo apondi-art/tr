@@ -1,0 +1,9 @@
+|-- .gitignore
+|-- Cargo.lock
+|-- Cargo.toml
+|-- src
+    |-- main.rs
+    |-- road.rs
+    |-- traffic_light.rs
+    |-- vehicle.rs
+    |-- window.rs
