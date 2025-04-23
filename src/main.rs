@@ -1,4 +1,3 @@
-// main.rs
 mod window;
 mod road;
 mod traffic_light;
@@ -16,10 +15,9 @@ fn main() -> Result<(), String> {
     let mut traffic_light_system = traffic_light::TrafficLightSystem::new();
     let mut vehicles: Vec<Vehicle> = Vec::new();
     let mut last_spawn_time = Instant::now();
-    let spawn_cooldown = Duration::from_secs(1); // 1 second between spawns
+    let spawn_cooldown = Duration::from_secs(1);
     
     'running: loop {
-        // Handle events
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
@@ -44,7 +42,9 @@ fn main() -> Result<(), String> {
                     };
                     
                     if let Some(dir) = direction {
-                        vehicles.push(Vehicle::new(dir));
+                        let mut new_vehicle = Vehicle::new(dir);
+                        new_vehicle.check_vehicles_ahead(&vehicles, vehicles.len(), &traffic_light_system);
+                        vehicles.push(new_vehicle);
                         last_spawn_time = Instant::now();
                     }
                 }
@@ -52,42 +52,36 @@ fn main() -> Result<(), String> {
             }
         }
         
-        // Update traffic lights
         traffic_light_system.update();
+        traffic_light_system.update_congestion(&vehicles);
         
-        // First check traffic lights for all vehicles
-        for vehicle in &mut vehicles {
-            vehicle.check_traffic_light(&traffic_light_system);
+        for i in 0..vehicles.len() {
+            let (vehicles_before, vehicles_after) = vehicles.split_at_mut(i);
+            let (current_vehicle, remaining_vehicles) = vehicles_after.split_first_mut().unwrap();
+            
+            let other_vehicles = [vehicles_before, remaining_vehicles].concat();
+            current_vehicle.check_vehicles_ahead(&other_vehicles, i, &traffic_light_system);
+            current_vehicle.update();
+            
+            if current_vehicle.x < -100 || current_vehicle.x > WINDOW_WIDTH as i32 + 100 ||
+               current_vehicle.y < -100 || current_vehicle.y > WINDOW_HEIGHT as i32 + 100 {
+                vehicles.remove(i);
+                break;
+            }
         }
         
-        // Then update vehicle positions
-        for vehicle in &mut vehicles {
-            vehicle.update();
-        }
-        
-        // Remove vehicles that are out of bounds
-        vehicles.retain(|v| {
-            v.x > -50 && v.x < (window::WINDOW_WIDTH as i32 + 50) &&
-            v.y > -50 && v.y < (window::WINDOW_HEIGHT as i32 + 50)
-        });
-        
-        // Clear screen
         canvas.set_draw_color(window::BACKGROUND_COLOR);
         canvas.clear();
         
-        // Draw intersection
         road::draw_intersection(&mut canvas)?;
-        
-        // Draw traffic lights
         traffic_light_system.draw(&mut canvas)?;
         
-        // Draw vehicles
         for vehicle in &vehicles {
             vehicle.draw(&mut canvas)?;
         }
         
         canvas.present();
-        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60)); // ~60 FPS
+        std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
     
     Ok(())

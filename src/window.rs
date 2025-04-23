@@ -1,18 +1,12 @@
-// window.rs
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
-// Window dimensions
 pub const WINDOW_WIDTH: u32 = 800;
 pub const WINDOW_HEIGHT: u32 = 600;
-
-// Center coordinates
 pub const CENTER_X: i32 = WINDOW_WIDTH as i32 / 2;
 pub const CENTER_Y: i32 = WINDOW_HEIGHT as i32 / 2;
-
-// Background color
-pub const BACKGROUND_COLOR: Color = Color::RGB(100, 100, 100); // Gray
+pub const BACKGROUND_COLOR: Color = Color::RGB(100, 100, 100);
 
 pub fn init() -> Result<(Canvas<Window>, sdl2::EventPump), String> {
     let sdl_context = sdl2::init()?;

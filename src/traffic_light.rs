@@ -1,15 +1,19 @@
-// traffic_light.rs
 use sdl2::pixels::Color;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 use std::time::Instant;
-use super::window::{CENTER_X, CENTER_Y};
+use sdl2::rect::Rect;
+use crate::vehicle::StopReason;
+use crate::window::{CENTER_X, CENTER_Y};
+use crate::vehicle::{Vehicle, Direction};
 
-// Constants for traffic light dimensions
 pub const ROAD_WIDTH: u32 = 100;
-const TRAFFIC_LIGHT_WIDTH: u32 = 15;
-const TRAFFIC_LIGHT_HEIGHT: u32 = 40;
-const LIGHT_RADIUS: i32 = 5;
+const TRAFFIC_LIGHT_DISTANCE: i32 = 20; // Distance from road edge
+const LIGHT_POLE_WIDTH: u32 = 10;
+const LIGHT_POLE_HEIGHT: u32 = 30;
+const LIGHT_HEAD_WIDTH: u32 = 20;
+const LIGHT_HEAD_HEIGHT: u32 = 40;
+const LIGHT_RADIUS: i32 = 6;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum TrafficLightState {
@@ -24,6 +28,10 @@ pub struct TrafficLightSystem {
     pub west_state: TrafficLightState,
     pub last_change: Instant,
     pub change_interval: u64,
+    pub min_interval: u64,
+    pub max_interval: u64,
+    pub north_south_congestion: u32,
+    pub east_west_congestion: u32,
 }
 
 impl TrafficLightSystem {
@@ -35,19 +43,63 @@ impl TrafficLightSystem {
             west_state: TrafficLightState::Green,
             last_change: Instant::now(),
             change_interval: 5,
+            min_interval: 3,
+            max_interval: 10,
+            north_south_congestion: 0,
+            east_west_congestion: 0,
+        }
+    }
+
+    pub fn update_congestion(&mut self, vehicles: &[Vehicle]) {
+        self.north_south_congestion = 0;
+        self.east_west_congestion = 0;
+        
+        for vehicle in vehicles {
+            if vehicle.stopped && vehicle.stop_reason == StopReason::TrafficLight {
+                match vehicle.direction {
+                    Direction::North | Direction::South => self.north_south_congestion += 1,
+                    Direction::East | Direction::West => self.east_west_congestion += 1,
+                }
+            }
+        }
+        self.adapt_timing();
+    }
+
+    fn adapt_timing(&mut self) {
+        const CONGESTION_THRESHOLD: u32 = 4;
+        
+        if self.north_state == TrafficLightState::Green {
+            self.change_interval = if self.east_west_congestion >= CONGESTION_THRESHOLD {
+                self.min_interval
+            } else {
+                5
+            };
+        } else {
+            self.change_interval = if self.north_south_congestion >= CONGESTION_THRESHOLD {
+                self.min_interval
+            } else {
+                5
+            };
+        }
+        
+        if self.north_south_congestion >= CONGESTION_THRESHOLD && 
+           self.east_west_congestion >= CONGESTION_THRESHOLD {
+            self.change_interval = 5;
+        }
+        
+        if self.north_south_congestion < 2 && self.east_west_congestion < 2 {
+            self.change_interval = self.max_interval;
         }
     }
     
     pub fn update(&mut self) {
         if self.last_change.elapsed().as_secs() >= self.change_interval {
             if self.north_state == TrafficLightState::Red {
-                // Switch to north-south green, east-west red
                 self.north_state = TrafficLightState::Green;
                 self.south_state = TrafficLightState::Green;
                 self.east_state = TrafficLightState::Red;
                 self.west_state = TrafficLightState::Red;
             } else {
-                // Switch to north-south red, east-west green
                 self.north_state = TrafficLightState::Red;
                 self.south_state = TrafficLightState::Red;
                 self.east_state = TrafficLightState::Green;
@@ -58,112 +110,130 @@ impl TrafficLightSystem {
     }
     
     pub fn draw(&self, canvas: &mut Canvas<Window>) -> Result<(), String> {
-        // Draw North traffic light - on the dotted line at the north approach
-        draw_traffic_light(
-            canvas, 
-            CENTER_X, // Position it on the center line (dotted line)
-            CENTER_Y - ROAD_WIDTH as i32 / 2 - TRAFFIC_LIGHT_HEIGHT as i32,
+        // Northbound light (facing south)
+        self.draw_traffic_light(
+            canvas,
+            CENTER_X - LIGHT_HEAD_WIDTH as i32 / 2,
+            CENTER_Y - ROAD_WIDTH as i32 / 2 - TRAFFIC_LIGHT_DISTANCE - LIGHT_HEAD_HEIGHT as i32,
+            false, // horizontal
             self.north_state
         )?;
         
-        // Draw South traffic light - on the dotted line at the south approach
-        draw_traffic_light(
-            canvas, 
-            CENTER_X, // Position it on the center line (dotted line)
-            CENTER_Y + ROAD_WIDTH as i32 / 2,
+        // Southbound light (facing north)
+        self.draw_traffic_light(
+            canvas,
+            CENTER_X - LIGHT_HEAD_WIDTH as i32 / 2,
+            CENTER_Y + ROAD_WIDTH as i32 / 2 + TRAFFIC_LIGHT_DISTANCE,
+            false, // horizontal
             self.south_state
         )?;
         
-        // Draw East traffic light - on the dotted line at the east approach
-        draw_traffic_light(
-            canvas, 
-            CENTER_X - ROAD_WIDTH as i32 / 2 - TRAFFIC_LIGHT_HEIGHT as i32,
-            CENTER_Y, // Position it on the center line (dotted line)
+        // Eastbound light (facing west)
+        self.draw_traffic_light(
+            canvas,
+            CENTER_X + ROAD_WIDTH as i32 / 2 + TRAFFIC_LIGHT_DISTANCE,
+            CENTER_Y - LIGHT_HEAD_WIDTH as i32 / 2,
+            true, // vertical
             self.east_state
         )?;
         
-        // Draw West traffic light - on the dotted line at the west approach
-        draw_traffic_light(
-            canvas, 
-            CENTER_X + ROAD_WIDTH as i32 / 2,
-            CENTER_Y, // Position it on the center line (dotted line)
+        // Westbound light (facing east)
+        self.draw_traffic_light(
+            canvas,
+            CENTER_X - ROAD_WIDTH as i32 / 2 - TRAFFIC_LIGHT_DISTANCE - LIGHT_HEAD_HEIGHT as i32,
+            CENTER_Y - LIGHT_HEAD_WIDTH as i32 / 2,
+            true, // vertical
             self.west_state
         )?;
         
         Ok(())
     }
-}
-
-fn draw_traffic_light(
-    canvas: &mut Canvas<Window>, 
-    x: i32, 
-    y: i32, 
-    state: TrafficLightState
-) -> Result<(), String> {
-    // Draw traffic light box
-    canvas.set_draw_color(Color::RGB(50, 50, 50)); // Dark gray for the traffic light housing
     
-    // Adjust orientation based on position
-    let is_vertical = x < CENTER_X - ROAD_WIDTH as i32 / 4 || x > CENTER_X + ROAD_WIDTH as i32 / 4;
-    
-    let (width, height) = if is_vertical {
-        (TRAFFIC_LIGHT_HEIGHT, TRAFFIC_LIGHT_WIDTH) // Horizontal orientation
-    } else {
-        (TRAFFIC_LIGHT_WIDTH, TRAFFIC_LIGHT_HEIGHT) // Vertical orientation
-    };
-    
-    canvas.fill_rect(sdl2::rect::Rect::new(x, y, width, height))?;
-    
-    // Draw border
-    canvas.set_draw_color(Color::RGB(80, 80, 80));
-    canvas.draw_rect(sdl2::rect::Rect::new(x, y, width, height))?;
-    
-    // Calculate light positions
-    let (red_x, red_y, green_x, green_y) = if is_vertical {
-        let center_y = y + height as i32 / 2;
-        (
-            x + width as i32 / 4,     // Red position
-            center_y,
-            x + 3 * width as i32 / 4, // Green position
-            center_y
-        )
-    } else {
-        let center_x = x + width as i32 / 2;
-        (
-            center_x,
-            y + height as i32 / 4,     // Red position
-            center_x,
-            y + 3 * height as i32 / 4  // Green position
-        )
-    };
-    
-    // Draw red light (dimmed if not active)
-    if state == TrafficLightState::Red {
-        canvas.set_draw_color(Color::RGB(255, 0, 0)); // Bright red
-    } else {
-        canvas.set_draw_color(Color::RGB(100, 0, 0)); // Dim red
+    fn draw_traffic_light(
+        &self,
+        canvas: &mut Canvas<Window>,
+        x: i32,
+        y: i32,
+        vertical: bool,
+        state: TrafficLightState
+    ) -> Result<(), String> {
+        // Draw pole
+        canvas.set_draw_color(Color::RGB(70, 70, 70));
+        let pole_rect = if vertical {
+            Rect::new(
+                x + LIGHT_HEAD_HEIGHT as i32 / 2 - LIGHT_POLE_WIDTH as i32 / 2,
+                y + LIGHT_HEAD_WIDTH as i32,
+                LIGHT_POLE_WIDTH,
+                LIGHT_POLE_HEIGHT
+            )
+        } else {
+            Rect::new(
+                x + LIGHT_HEAD_WIDTH as i32 / 2 - LIGHT_POLE_WIDTH as i32 / 2,
+                y - LIGHT_POLE_HEIGHT as i32,
+                LIGHT_POLE_WIDTH,
+                LIGHT_POLE_HEIGHT
+            )
+        };
+        canvas.fill_rect(pole_rect)?;
+        
+        // Draw light head
+        canvas.set_draw_color(Color::RGB(40, 40, 40));
+        let head_rect = Rect::new(x, y, 
+            if vertical { LIGHT_HEAD_HEIGHT } else { LIGHT_HEAD_WIDTH },
+            if vertical { LIGHT_HEAD_WIDTH } else { LIGHT_HEAD_HEIGHT }
+        );
+        canvas.fill_rect(head_rect)?;
+        canvas.set_draw_color(Color::RGB(20, 20, 20));
+        canvas.draw_rect(head_rect)?;
+        
+        // Calculate light positions
+        let (red_pos, green_pos) = if vertical {
+            // Vertical light (for east/west traffic)
+            (
+                (x + LIGHT_HEAD_HEIGHT as i32 / 2, y + LIGHT_HEAD_WIDTH as i32 / 3),
+                (x + LIGHT_HEAD_HEIGHT as i32 / 2, y + 2 * LIGHT_HEAD_WIDTH as i32 / 3)
+            )
+        } else {
+            // Horizontal light (for north/south traffic)
+            (
+                (x + LIGHT_HEAD_WIDTH as i32 / 3, y + LIGHT_HEAD_HEIGHT as i32 / 2),
+                (x + 2 * LIGHT_HEAD_WIDTH as i32 / 3, y + LIGHT_HEAD_HEIGHT as i32 / 2)
+            )
+        };
+        
+        // Draw red light
+        canvas.set_draw_color(if state == TrafficLightState::Red {
+            Color::RGB(255, 0, 0)
+        } else {
+            Color::RGB(80, 0, 0)
+        });
+        self.draw_filled_circle(canvas, red_pos.0, red_pos.1, LIGHT_RADIUS)?;
+        
+        // Draw green light
+        canvas.set_draw_color(if state == TrafficLightState::Green {
+            Color::RGB(0, 255, 0)
+        } else {
+            Color::RGB(0, 80, 0)
+        });
+        self.draw_filled_circle(canvas, green_pos.0, green_pos.1, LIGHT_RADIUS)?;
+        
+        Ok(())
     }
-    draw_filled_circle(canvas, red_x, red_y, LIGHT_RADIUS)?;
     
-    // Draw green light (dimmed if not active)
-    if state == TrafficLightState::Green {
-        canvas.set_draw_color(Color::RGB(0, 255, 0)); // Bright green
-    } else {
-        canvas.set_draw_color(Color::RGB(0, 100, 0)); // Dim green
-    }
-    draw_filled_circle(canvas, green_x, green_y, LIGHT_RADIUS)?;
-    
-    Ok(())
-}
-
-fn draw_filled_circle(canvas: &mut Canvas<Window>, x: i32, y: i32, radius: i32) -> Result<(), String> {
-    // Simple circle drawing implementation
-    for dy in -radius..=radius {
-        for dx in -radius..=radius {
-            if dx*dx + dy*dy <= radius*radius {
-                canvas.draw_point((x + dx, y + dy))?;
+    fn draw_filled_circle(
+        &self, 
+        canvas: &mut Canvas<Window>, 
+        x: i32, 
+        y: i32, 
+        radius: i32
+    ) -> Result<(), String> {
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
+                if dx*dx + dy*dy <= radius*radius {
+                    canvas.draw_point((x + dx, y + dy))?;
+                }
             }
         }
+        Ok(())
     }
-    Ok(())
 }
